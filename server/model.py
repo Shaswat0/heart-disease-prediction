@@ -1,11 +1,10 @@
-import tensorflow as tf
+# server/model.py
 
-def create_global_model(input_dim=13):
-    """Global model for aggregation"""
-    model = tf.keras.Sequential([
-        tf.keras.layers.Dense(32, activation="relu", input_shape=(input_dim,)),
-        tf.keras.layers.Dense(16, activation="relu"),
-        tf.keras.layers.Dense(1, activation="sigmoid")
-    ])
-    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-    return model
+"""
+Factory to produce a model instance matching client models.
+"""
+
+from clients.client_1.model import CombinedModel
+
+def get_global_model(tab_in=13):
+    return CombinedModel(tab_in=tab_in)

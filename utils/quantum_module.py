@@ -1,18 +1,30 @@
-from qiskit import QuantumCircuit, transpile
-from qiskit_aer import AerSimulator
-import numpy as np
+# utils/quantum_module.py
 
-def quantum_inference(feature_vector):
-    num_qubits = min(len(feature_vector), 4)
-    qc = QuantumCircuit(num_qubits)
-    for i in range(num_qubits):
-        qc.ry(feature_vector[i], i)
-    for i in range(num_qubits - 1):
-        qc.cz(i, i + 1)
-    qc.measure_all()
-    simulator = AerSimulator()
-    transpiled_qc = transpile(qc, simulator)
-    result = simulator.run(transpiled_qc).result()
-    counts = result.get_counts()
-    probabilities = np.array(list(counts.values())) / sum(counts.values())
-    return np.mean(probabilities)
+"""
+Simulated quantum optimization. Keeps lightweight, deterministic.
+"""
+
+import torch
+from .config import USE_QUANTUM_OPTIMIZATION
+
+def quantum_optimize_features(tab_tensor):
+    """
+    Simulate a small transformation on features.
+    Input: tensor shape (batch, features)
+    """
+    if not USE_QUANTUM_OPTIMIZATION:
+        return tab_tensor
+    # simple deterministic transform: scaled sinusoidal mapping
+    return tab_tensor * torch.sin(tab_tensor + 0.5)
+
+def quantum_optimize_model_weights(state_dict):
+    """
+    Optional: slight smoothing of weights (simulated). Accepts and returns state_dict.
+    """
+    if not USE_QUANTUM_OPTIMIZATION:
+        return state_dict
+    new = {}
+    for k, v in state_dict.items():
+        tensor = v.float()
+        new[k] = (tensor * 0.98) + (0.02 * torch.tanh(tensor))
+    return new

@@ -1,52 +1,77 @@
+# app/streamlit_app.py
+
+"""
+Streamlit UI to input tabular features and an ECG image and get prediction.
+"""
+
 import streamlit as st
 import torch
-from client_1.model import GNNModel
-from utils.data_preprocessing import create_graph, load_patient_data
-from utils.quantum_module import quantum_inference
-from PIL import Image
-import numpy as np
-import sys
+from utils.config import MODEL_PATH, INPUT_DIM, DEVICE
+from utils.data_preprocessing import preprocess_input
+from utils.quantum_module import quantum_optimize_features
+from server.model import get_global_model
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# --- Load global model ---
-global_weights_path = "../global_model.pth"
-features, labels = load_patient_data("../data/patient_data.csv")
-input_dim = features.shape[1]
+st.set_page_config(page_title="Heart Disease Prediction", layout="centered")
 
-global_model = GNNModel(input_dim)
-global_model.load_state_dict(torch.load(global_weights_path))
-global_model.eval()
-
-st.title("Heart Disease Prediction (GNN + Quantum)")
-
-# Upload image or enter CSV data
-uploaded_file = st.file_uploader("Upload ECG Image (optional)", type=["png", "jpg"])
-manual_input = st.text_area("Or enter patient data manually (comma-separated)")
-
-def preprocess_input(uploaded_file=None, manual_input=None):
-    if uploaded_file:
-        # For demo, just convert image to grayscale mean as a single feature vector
-        image = Image.open(uploaded_file).convert("L").resize((32,32))
-        arr = np.array(image)/255.0
-        feature_vector = arr.mean(axis=0)  # simple feature vector
-        features = np.tile(feature_vector, (1, input_dim))[:,:input_dim]  # match dimension
-    elif manual_input:
-        vals = np.array([float(x) for x in manual_input.strip().split(",")], dtype=np.float32)
-        features = np.expand_dims(vals, axis=0)
-    else:
-        st.error("Please upload an image or enter data!")
+@st.cache_resource
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        st.error("Global model not found. Train clients and run server to generate model.")
         return None
-    return features
+    model = get_global_model(tab_in=INPUT_DIM)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    model.to(DEVICE)
+    model.eval()
+    return model
 
-features_input = preprocess_input(uploaded_file, manual_input)
-if features_input is not None:
-    # Create graph for GNN
-    data = create_graph(features_input)
-    
-    with torch.no_grad():
-        pred = global_model(data)
-        q_out = quantum_inference(features_input[0])
-        final_pred = torch.clamp(pred + 0.1 * q_out, 0, 1)
-    
-    st.write("Predicted probability of heart disease:", final_pred.numpy())
+def main():
+    st.title("❤️ Privacy-Preserving Heart Disease Prediction")
+    st.write("Enter patient features and optionally upload an ECG image.")
+
+    # Example inputs - adapt to your CSV columns order
+    st.subheader("Patient Features (tabular)")
+    age = st.number_input("age", min_value=1, max_value=120, value=55)
+    sex = st.selectbox("sex (0=female,1=male)", [0,1], index=1)
+    cp = st.number_input("cp (chest pain type 0-3)", min_value=0, max_value=3, value=1)
+    trestbps = st.number_input("trestbps", min_value=50, max_value=250, value=130)
+    chol = st.number_input("chol", min_value=100, max_value=600, value=230)
+    fbs = st.selectbox("fbs (fasting blood sugar > 120 mg/dl)", [0,1], index=0)
+    restecg = st.number_input("restecg (0-2)", min_value=0, max_value=2, value=1)
+    thalach = st.number_input("thalach", min_value=50, max_value=250, value=150)
+    exang = st.selectbox("exang (exercise induced angina 0/1)", [0,1], index=0)
+    oldpeak = st.number_input("oldpeak", min_value=0.0, max_value=10.0, value=1.0, format="%.1f")
+    slope = st.number_input("slope", min_value=0, max_value=2, value=1)
+    ca = st.number_input("ca", min_value=0, max_value=3, value=0)
+    thal = st.number_input("thal", min_value=0, max_value=3, value=1)
+
+    file = st.file_uploader("Upload ECG image (optional)", type=["png","jpg","jpeg"])
+
+    if st.button("Predict"):
+        model = load_model()
+        if model is None:
+            return
+        # build user vector with same order as CSV
+        user_vec = [age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]
+        image_path = None
+        if file is not None:
+            temp_path = os.path.join(".", "temp_ecg_upload.png")
+            with open(temp_path, "wb") as f:
+                f.write(file.getbuffer())
+            image_path = temp_path
+        data = preprocess_input(user_vec, image_path=image_path)
+        tab = data["tabular"]
+        img = data["image"]
+        # optional quantum optimize features
+        tab = quantum_optimize_features(tab)
+
+        with torch.no_grad():
+            out = model(tab.to(DEVICE), img.to(DEVICE))
+            pred = torch.argmax(out, dim=1).item()
+            probs = torch.softmax(out, dim=1).cpu().numpy()[0]
+
+        st.success(f"Prediction: {'Heart Disease' if pred==1 else 'Healthy'}")
+        st.write(f"Confidence: Healthy={probs[0]:.3f}, HeartDisease={probs[1]:.3f}")
+
+if __name__ == "__main__":
+    main()
